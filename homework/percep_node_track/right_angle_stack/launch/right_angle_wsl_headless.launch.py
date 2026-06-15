@@ -9,14 +9,28 @@ from launch.substitutions import Command, EnvironmentVariable, LaunchConfigurati
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
+"""WSL/headless 调试入口。
+
+该入口使用不含相机和 GPU 雷达的轻量车辆模型，适合在 WSL 图形栈不稳定时验证：
+
+- Gazebo server 是否能启动；
+- 车辆是否能 spawn；
+- `/cmd_vel` bridge 是否生效；
+- 定位、感知、建图、规划、控制链路是否闭环。
+
+默认感知仍然使用老师给的 `sim_perception`。
+"""
+
 
 def generate_launch_description():
+    # 所有资源路径都从安装后的 package share 中获取，避免依赖源码路径。
     stack_share = get_package_share_directory('right_angle_stack')
     track_share = get_package_share_directory('right_angle_track')
     ros_gz_sim_share = get_package_share_directory('ros_gz_sim')
 
     world_name = 'right_angle_world'
     world_path = os.path.join(track_share, 'worlds', 'right_angle_wsl_headless.sdf')
+    # headless 模型去掉了渲染传感器，降低 WSL 下 OGRE/GUI 崩溃概率。
     robot_sdf = os.path.join(stack_share, 'models', 'right_angle_car_wsl_headless', 'model.sdf')
     robot_xacro = os.path.join(stack_share, 'urdf', 'right_angle_car.urdf.xacro')
     rviz_config = os.path.join(stack_share, 'rviz', 'right_angle.rviz')
@@ -52,6 +66,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='false'),
+        # 默认感知使用老师给的 sim_perception；内置感知只作 fallback。
         DeclareLaunchArgument('use_builtin_perception', default_value='false'),
         DeclareLaunchArgument('use_sim_perception', default_value='true'),
         DeclareLaunchArgument('perception_map_topic', default_value='/perception/cones'),
@@ -72,6 +87,7 @@ def generate_launch_description():
             name='spawn_right_angle_car',
             output='screen',
             arguments=[
+                # 起点：(0, -15)，朝北 yaw=pi/2。
                 '-world', world_name,
                 '-file', robot_sdf,
                 '-name', model_name,
@@ -87,6 +103,7 @@ def generate_launch_description():
             name='ros_gz_clock_bridge',
             output='screen',
             arguments=[
+                # 把 Gazebo world clock 映射到 ROS /clock。
                 f'/world/{world_name}/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             ],
             remappings=[(f'/world/{world_name}/clock', '/clock')],
@@ -97,6 +114,7 @@ def generate_launch_description():
             name='ros_gz_bridge',
             output='screen',
             arguments=[
+                # headless 入口只桥接非渲染传感器，避免相机/GPU 雷达触发渲染线程。
                 '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
                 '/sensors/wheel_odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
                 '/sensors/imu/data_raw@sensor_msgs/msg/Imu[gz.msgs.IMU',
@@ -139,6 +157,7 @@ def generate_launch_description():
             executable='sim_node',
             name='sim_perception',
             output='screen',
+            # 默认感知节点也使用仿真时钟。
             parameters=[{'use_sim_time': sim_time_param}],
             condition=IfCondition(use_sim_perception),
         ),

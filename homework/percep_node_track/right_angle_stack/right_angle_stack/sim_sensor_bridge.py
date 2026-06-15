@@ -9,6 +9,21 @@ from sensor_msgs.msg import Imu, MagneticField, NavSatFix, NavSatStatus
 
 from .utils import quaternion_to_yaw, world_to_body, yaw_to_quaternion
 
+"""Gazebo Classic 传感器兜底桥。
+
+这个节点主要服务于早期 Gazebo Classic 路线或传感器插件缺失的场景。
+当前主线是 Gazebo Sim 8，通常不需要启用它。
+
+它从 `/gazebo/model_states` 读取车辆真实状态，然后人工生成：
+
+- GPS；
+- IMU；
+- 磁力计；
+- 可选 wheel odom。
+
+这样即使 Gazebo 中某些传感器插件不可用，也能先验证定位、建图、规划、控制链路。
+"""
+
 
 EARTH_RADIUS_M = 6378137.0
 
@@ -18,12 +33,20 @@ class SimSensorBridge(Node):
 
     def __init__(self):
         super().__init__('sim_sensor_bridge')
+
+        # Gazebo Classic 的 /gazebo/model_states 中包含所有模型，需要指定车辆模型名。
         self.declare_parameter('model_name', 'racecar')
+
+        # 经纬度原点，用来把 world 米制坐标转换成 GPS 经纬度。
         self.declare_parameter('origin_latitude', 23.043055)
         self.declare_parameter('origin_longitude', 113.397222)
+
+        # 给合成传感器加入少量噪声，让下游融合逻辑更接近真实传感器。
         self.declare_parameter('gps_noise_std', 0.25)
         self.declare_parameter('imu_gyro_noise_std', 0.002)
         self.declare_parameter('mag_noise_std', 1e-6)
+
+        # 默认不发布 wheel_odom，避免和 Gazebo 插件自身发布的里程计冲突。
         self.declare_parameter('publish_wheel_odom', False)
 
         self.model_name = str(self.get_parameter('model_name').value)
@@ -45,6 +68,7 @@ class SimSensorBridge(Node):
         self.get_logger().info('Synthetic GPS/IMU/magnetometer bridge enabled.')
 
     def local_xy_to_gps(self, x, y):
+        """把 Gazebo world 米制坐标转换成近似 GPS 经纬度。"""
         noisy_x = x + random.gauss(0.0, self.gps_noise_std)
         noisy_y = y + random.gauss(0.0, self.gps_noise_std)
         lat = self.origin_lat + noisy_y / EARTH_RADIUS_M
@@ -52,6 +76,7 @@ class SimSensorBridge(Node):
         return math.degrees(lat), math.degrees(lon)
 
     def on_model_states(self, msg):
+        """读取 Gazebo Classic 的真实模型状态，并发布合成传感器。"""
         try:
             index = msg.name.index(self.model_name)
         except ValueError:
@@ -60,12 +85,16 @@ class SimSensorBridge(Node):
         pose = msg.pose[index]
         twist = msg.twist[index]
         yaw = quaternion_to_yaw(pose.orientation)
+
+        # Gazebo model_states 中的 twist 是 world 坐标速度；
+        # 定位融合需要车体前向速度，因此转换到 base_link。
         forward_speed, lateral_speed = world_to_body(twist.linear.x, twist.linear.y, yaw)
 
         stamp = self.get_clock().now()
         stamp_msg = stamp.to_msg()
         lat, lon = self.local_xy_to_gps(pose.position.x, pose.position.y)
 
+        # 合成 GPS。
         gps = NavSatFix()
         gps.header.stamp = stamp_msg
         gps.header.frame_id = 'gps_link'
@@ -80,6 +109,7 @@ class SimSensorBridge(Node):
         gps.position_covariance_type = NavSatFix.COVARIANCE_TYPE_DIAGONAL_KNOWN
         self.gps_pub.publish(gps)
 
+        # 根据前向速度差分估计纵向加速度。
         dt = 0.02
         if self.last_stamp is not None:
             dt = max(1e-3, (stamp - self.last_stamp).nanoseconds * 1e-9)
@@ -87,6 +117,7 @@ class SimSensorBridge(Node):
         self.last_speed = forward_speed
         self.last_stamp = stamp
 
+        # 合成 IMU。orientation_covariance[0] = -1 表示 orientation 不作为可信姿态使用。
         imu = Imu()
         imu.header.stamp = stamp_msg
         imu.header.frame_id = 'imu_link'
@@ -98,6 +129,7 @@ class SimSensorBridge(Node):
         imu.linear_acceleration.z = 9.81
         self.imu_pub.publish(imu)
 
+        # 合成磁力计。这里用 yaw 构造一个水平磁场方向，仅用于兜底测试。
         field_strength = 2.5e-5
         mag = MagneticField()
         mag.header.stamp = stamp_msg
@@ -108,6 +140,7 @@ class SimSensorBridge(Node):
         self.mag_pub.publish(mag)
 
         if self.publish_wheel_odom:
+            # 仅在明确开启时发布，避免和真实 wheel odom 产生双发布冲突。
             odom = Odometry()
             odom.header.stamp = stamp_msg
             odom.header.frame_id = 'odom'

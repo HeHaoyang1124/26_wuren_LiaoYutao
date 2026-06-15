@@ -9,8 +9,18 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
+"""Gazebo Classic 兼容入口。
+
+当前主线是 Jazzy + Gazebo Sim 8，本文件保留作为旧环境或 Classic 回退路线。
+如果环境中没有 `gazebo_ros`，这个入口会失败；Jazzy 主调试请使用
+`right_angle_harmonic.launch.py`。
+
+默认感知同样设置为老师给的 `sim_perception`，与主入口保持一致。
+"""
+
 
 def generate_launch_description():
+    # Classic 路线使用 xacro + gazebo_ros spawn_entity。
     stack_share = get_package_share_directory('right_angle_stack')
     track_share = get_package_share_directory('right_angle_track')
 
@@ -37,6 +47,11 @@ def generate_launch_description():
     gazebo_models = PathJoinSubstitution([FindPackageShare('right_angle_track'), 'models'])
 
     def gazebo_actions(context):
+        """根据 use_gazebo 参数决定是否启动 Gazebo Classic。
+
+        用 OpaqueFunction 是为了在 launch 执行期再检查 gazebo_ros，
+        这样 `use_gazebo:=false` 时可以只跑算法链路。
+        """
         use_gazebo_value = use_gazebo.perform(context).strip().lower()
         if use_gazebo_value not in ('1', 'true', 'yes', 'on'):
             return []
@@ -77,6 +92,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_gazebo', default_value='true'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='true'),
+        # 默认感知使用老师给的 sim_perception；内置感知只作 fallback。
         DeclareLaunchArgument('use_builtin_perception', default_value='false'),
         DeclareLaunchArgument('use_sim_perception', default_value='true'),
         DeclareLaunchArgument('use_synthetic_sensors', default_value='false'),
@@ -131,6 +147,7 @@ def generate_launch_description():
             executable='sim_node',
             name='sim_perception',
             output='screen',
+            # 保持和其他节点一致，使用仿真时钟。
             parameters=[{'use_sim_time': sim_time_param}],
             condition=IfCondition(use_sim_perception),
         ),

@@ -9,15 +9,39 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 from .utils import yaw_to_quaternion
 
+"""右角弯中心线规划节点。
+
+输入：
+
+- `/estimation/slam/map`：全局锥桶地图。
+- `/localization/pose`：车辆当前位姿。
+
+输出：
+
+- `/planning/centerline`：给 Pure Pursuit 使用的路径。
+- `/visualization/planning`：RViz 路径 marker。
+
+规划器采用“两级策略”：
+
+1. 优先从蓝锥、黄锥配对求中点，得到锥桶中心线；
+2. 如果地图不足，则回退到解析路径，保证车辆仍能跑完整个直角弯。
+"""
+
 
 class RightAnglePlanner(Node):
     def __init__(self):
         super().__init__('right_angle_planner')
+
+        # prefer_cone_map=True 时优先使用地图中心线，而不是解析 fallback。
         self.declare_parameter('prefer_cone_map', True)
         self.declare_parameter('fallback_path', True)
+
+        # 这三个参数定义 fallback 路径中的右角弯几何。
         self.declare_parameter('turn_center_x', 12.0)
         self.declare_parameter('turn_center_y', 0.0)
         self.declare_parameter('turn_radius', 12.0)
+
+        # 配对距离和路径加密步长。
         self.declare_parameter('pair_distance_max', 6.2)
         self.declare_parameter('path_step', 0.8)
 
@@ -39,12 +63,18 @@ class RightAnglePlanner(Node):
         self.get_logger().info('Right-angle centerline planner started.')
 
     def on_map(self, msg):
+        """缓存最新地图。"""
         self.latest_map = msg
 
     def on_pose(self, msg):
+        """缓存当前位姿，当前主要用于未来扩展，不直接参与路径计算。"""
         self.current_pose = msg
 
     def track_progress(self, point):
+        """给路径点定义一个“沿赛道前进顺序”的标量。
+
+        这样可以把散乱的中点按赛道推进方向排序，而不是只按 x/y 排序。
+        """
         x, y = point
         if y <= 0.2 and x < 3.0:
             return y + 15.0
@@ -55,6 +85,14 @@ class RightAnglePlanner(Node):
         return 15.0 + 0.5 * math.pi * self.radius + max(0.0, x - self.center_x)
 
     def analytic_path(self):
+        """生成直角弯的解析 fallback 路径。
+
+        路径分三段：
+
+        - 直道：x=0，y 从 -15 到 0；
+        - 弯道：以 (turn_center_x, turn_center_y) 为圆心的四分之一圆；
+        - 出弯直道：y = turn_center_y + radius，x 向前延伸。
+        """
         points = []
         y = -15.0
         while y <= 0.0:
@@ -77,6 +115,15 @@ class RightAnglePlanner(Node):
         return points
 
     def cone_centerline(self):
+        """从蓝锥和黄锥配对得到中心线。
+
+        规则很简单：
+
+        - 一个蓝锥只配一个最近的黄锥；
+        - 配对距离太大就跳过；
+        - 取中点作为中心线点；
+        - 中点数量足够时再生成路径。
+        """
         if self.latest_map is None:
             return []
         blue = [(c.position.x, c.position.y) for c in self.latest_map.cone_blue]
@@ -108,6 +155,7 @@ class RightAnglePlanner(Node):
         return self.densify(midpoints)
 
     def densify(self, points):
+        """对稀疏路径点做线性插值，让 Pure Pursuit 更稳定。"""
         if not points:
             return []
         dense = [points[0]]
@@ -122,6 +170,14 @@ class RightAnglePlanner(Node):
         return dense
 
     def choose_path(self):
+        """选择本周期最终输出路径。
+
+        优先级：
+
+        1. 锥桶地图中心线；
+        2. 解析 fallback；
+        3. 没有路径则不发布。
+        """
         cone_path = self.cone_centerline() if self.prefer_cone_map else []
         if len(cone_path) >= 8:
             return cone_path, 'cone_map'
@@ -130,6 +186,7 @@ class RightAnglePlanner(Node):
         return [], 'none'
 
     def on_timer(self):
+        """周期性生成 Path 并发布 marker。"""
         points, source = self.choose_path()
         if not points:
             return
@@ -156,6 +213,7 @@ class RightAnglePlanner(Node):
         self.publish_markers(path.header, points, source)
 
     def publish_markers(self, header, points, source):
+        """把中心线画成 RViz 可见的线条。"""
         markers = MarkerArray()
         clear = Marker()
         clear.header = header

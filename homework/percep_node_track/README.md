@@ -19,7 +19,7 @@ Gazebo 赛道/车辆/传感器
 - Gazebo Sim 8
 - ros_gz_sim + ros_gz_bridge
 - 工作区：homework/percep_node_track
-- 起点(0, -15)，车辆朝北，初始 yaw 为pi/2
+- 起点(0, -15)，车辆朝北，初始 yaw 为$\frac{\pi}{2}$
 
 在调试过程中尝试在WSL和实体机上运行，humble与jazzy版本的ros2都有使用，最终在Jazzy + Gazebo Sim 8 上首先跑通。
 总结调试环境使用经验如下：
@@ -48,15 +48,15 @@ Gazebo 赛道/车辆/传感器
 
 课程给出的感知代码对坐标系有要求，本工程按下面约定实现：
 
-- 全局坐标系：`world`
-- 全局坐标系方向：ENU，`x` 向东，`y` 向北，`z` 向上
-- 车辆底盘坐标系：`base_link`
-- 车辆局部坐标系方向：FLU，`x` 向前，`y` 向左，`z` 向上
-- 相机光学坐标系：`camera_optical_frame`
-- 雷达坐标系：`lidar_link`
-- 定位 TF：`world -> base_link`
+- 全局坐标系：world
+- 全局坐标系方向：ENU，x 向东，y 向北，z 向上
+- 车辆底盘坐标系：base_link
+- 车辆局部坐标系方向：FLU，x 向前，y 向左，z 向上
+- 相机光学坐标系：camera_optical_frame
+- 雷达坐标系：lidar_link
+- 定位 TF：world -> base_link
 
-车辆从 `(0, -15)` 出发，朝北行驶。因为 `world` 的 `y` 轴向北，所以车辆初始 yaw 是 `pi/2`。
+车辆从 (0, -15) 出发，朝北行驶。因为 world 的 y 轴向北，所以车辆初始 yaw 是 $\frac{\pi}{2}$。
 
 ## 工程结构
 
@@ -285,15 +285,15 @@ find sim_perception install/sim_perception -name 'pyarmor_runtime.so' -ls
 
 开发步骤：
 
-1. 建立 world。
+1. 建立 world
 
    right_angle_harmonic.sdf中定义了right_angle_world、重力、磁场、地面、光照、spherical_coordinates和赛道模型。spherical_coordinates用来给GPS插件提供经纬度参考。
 
-2. 建立赛道。
+2. 建立赛道
 
    shixi/model.sdf 使用<include>布置蓝色和黄色锥桶。直道部分沿y轴，从y=-15到y=0；弯道后转到横向路径，形成右角弯。
 
-3. 建立锥桶模型。
+3. 建立锥桶模型
 
    最终设计为：
 
@@ -302,7 +302,7 @@ find sim_perception install/sim_perception -name 'pyarmor_runtime.so' -ls
 
    既满足可视化，又减少物理仿真碰撞问题。
 
-4. 建立车辆模型。
+4. 建立车辆模型
 
    right_angle_car_harmonic/model.sdf 中包含
 
@@ -315,14 +315,14 @@ find sim_perception install/sim_perception -name 'pyarmor_runtime.so' -ls
 
    车辆通过 DiffDrive 接收 /cmd_vel，发布 /sensors/wheel_odom。
 
-5. 建立 Gazebo/ROS 桥接。
+5. 建立 Gazebo/ROS 桥接
 
    right_angle_harmonic.launch.py 中使用 ros_gz_bridge parameter_bridge 桥接：
 
    - ROS -> Gazebo：/cmd_vel
    - Gazebo -> ROS：/clock、轮速里程计、GPS、IMU、磁力计、相机、雷达
 
-6. 可视化。
+6. 可视化
 
    Gazebo GUI 负责观察真实仿真场景；RViz 负责观察 ROS 侧数据，包括 TF、车辆模型、相机图像、雷达点云、锥桶地图和规划中心线。
 

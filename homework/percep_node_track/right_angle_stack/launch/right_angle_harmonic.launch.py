@@ -9,14 +9,37 @@ from launch.substitutions import Command, EnvironmentVariable, LaunchConfigurati
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
+"""Gazebo Sim 8 完整仿真入口。
+
+这是当前主启动文件，负责同时启动：
+
+- Gazebo Sim world；
+- 车辆 SDF；
+- ROS/Gazebo bridge；
+- robot_state_publisher；
+- 定位、感知、建图、规划、控制；
+- 可选 RViz。
+
+默认感知算法是老师给的 `sim_perception`：
+
+- `use_builtin_perception=false`
+- `use_sim_perception=true`
+
+如果加密包运行环境出问题，可以在命令行切回内置 `track_perception`。
+"""
+
 
 def generate_launch_description():
+    # 获取各 ROS 包安装后的 share 目录。launch 运行时不能假设源码相对路径。
     stack_share = get_package_share_directory('right_angle_stack')
     track_share = get_package_share_directory('right_angle_track')
     ros_gz_sim_share = get_package_share_directory('ros_gz_sim')
 
+    # world_name 必须和 SDF world 名一致，否则 ros_gz_sim create 找不到目标 world。
     world_name = 'right_angle_world'
     world_path = os.path.join(track_share, 'worlds', 'right_angle_harmonic.sdf')
+
+    # Gazebo 使用 SDF 生成实体，RViz/TF 使用 xacro 生成 robot_description。
     robot_sdf = os.path.join(stack_share, 'models', 'right_angle_car_harmonic', 'model.sdf')
     robot_xacro = os.path.join(stack_share, 'urdf', 'right_angle_car.urdf.xacro')
     rviz_config = os.path.join(stack_share, 'rviz', 'right_angle.rviz')
@@ -35,6 +58,7 @@ def generate_launch_description():
     perception_detections_topic = LaunchConfiguration('perception_detections_topic')
     sim_time_param = ParameterValue(use_sim_time, value_type=bool)
 
+    # Gazebo 通过 GZ_SIM_RESOURCE_PATH 查找 model://blue_cone、model://shixi 等资源。
     gz_resource_path = [
         track_models,
         os.pathsep,
@@ -52,6 +76,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='false'),
+        # 默认使用老师给的 sim_perception，内置 track_perception 只作为 fallback。
         DeclareLaunchArgument('use_builtin_perception', default_value='false'),
         DeclareLaunchArgument('use_sim_perception', default_value='true'),
         DeclareLaunchArgument('perception_map_topic', default_value='/perception/cones'),
@@ -78,6 +103,7 @@ def generate_launch_description():
             name='spawn_right_angle_car',
             output='screen',
             arguments=[
+                # 车辆出生点按课程要求设置：(0, -15)，朝北 yaw=pi/2。
                 '-world', world_name,
                 '-file', robot_sdf,
                 '-name', model_name,
@@ -93,6 +119,7 @@ def generate_launch_description():
             name='ros_gz_clock_bridge',
             output='screen',
             arguments=[
+                # Gazebo Sim 的 clock 默认在 /world/<world>/clock，这里 remap 到 ROS 常用 /clock。
                 f'/world/{world_name}/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             ],
             remappings=[(f'/world/{world_name}/clock', '/clock')],
@@ -103,6 +130,9 @@ def generate_launch_description():
             name='ros_gz_bridge',
             output='screen',
             arguments=[
+                # 方向说明：
+                #   ] 表示 ROS -> Gazebo，用于 /cmd_vel 控制车辆；
+                #   [ 表示 Gazebo -> ROS，用于传感器数据进入 ROS 算法链路。
                 '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
                 '/sensors/wheel_odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
                 '/sensors/imu/data_raw@sensor_msgs/msg/Imu[gz.msgs.IMU',
@@ -149,6 +179,7 @@ def generate_launch_description():
             executable='sim_node',
             name='sim_perception',
             output='screen',
+            # sim_perception 是默认感知节点，也需要使用仿真时间戳。
             parameters=[{'use_sim_time': sim_time_param}],
             condition=IfCondition(use_sim_perception),
         ),
