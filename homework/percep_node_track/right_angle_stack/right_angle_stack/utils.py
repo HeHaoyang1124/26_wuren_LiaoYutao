@@ -7,14 +7,14 @@ from geometry_msgs.msg import Quaternion
 本文件只放不依赖 ROS 节点状态的纯函数，主要服务于：
 
 - 航向角与四元数互相转换；
-- `world` 全局坐标系与 `base_link` 车辆局部坐标系互相转换；
+- world 全局坐标系与 base_link 车辆局部坐标系互相转换；
 - 锥桶颜色字符串归一化；
 - RViz marker 颜色设置。
 
 坐标系约定：
 
-- `world`：ENU，x 向东，y 向北，z 向上。
-- `base_link`：FLU，x 向前，y 向左，z 向上。
+- world：ENU，x 向东，y 向北，z 向上。
+- base_link：FLU，x 向前，y 向左，z 向上。
 
 这些函数会被定位、感知、建图、规划、控制多个节点复用，所以保持成无副作用函数，方便单独检查和答辩解释。
 """
@@ -33,7 +33,7 @@ def yaw_to_quaternion(yaw):
     """把平面 yaw 角转换成 ROS 四元数。
 
     本车只在平面上运动，roll 和 pitch 默认都是 0，因此四元数里只有 z 和 w 分量非零。
-    该函数用于 `/localization/pose`、`/localization/odom`、TF 和规划路径姿态。
+    该函数用于 /localization/pose、/localization/odom、TF 和规划路径姿态。
     """
     q = Quaternion()
     q.w = math.cos(yaw * 0.5)
@@ -55,7 +55,7 @@ def quaternion_to_yaw(q):
 def world_to_body(dx, dy, yaw):
     """把 world 坐标差转换到车辆 base_link 坐标系。
 
-    参数 `dx, dy` 是目标点相对车辆当前位置的 world 坐标差。
+    参数 dx, dy 是目标点相对车辆当前位置的 world 坐标差。
     返回值：
 
     - local_x：目标在车辆前后方向的位置，正值表示在车前方。
@@ -72,7 +72,7 @@ def world_to_body(dx, dy, yaw):
 def body_to_world(local_x, local_y, origin_x, origin_y, yaw):
     """把车辆局部坐标点转换到 world 坐标系。
 
-    建图节点收到的锥桶通常在 `base_link` 下，需要结合车辆在 world 下的
+    建图节点收到的锥桶通常在 base_link 下，需要结合车辆在 world 下的
     位置和 yaw，把局部观测变成全局地标。
     """
     c = math.cos(yaw)
@@ -86,9 +86,9 @@ def body_to_world(local_x, local_y, origin_x, origin_y, yaw):
 def color_key(color):
     """把颜色字符串归一化成固定分类。
 
-    感知包可能发布 `blue`、`BLUE`、`yellow_cone` 等不同字符串。
+    感知包可能发布 blue、BLUE、yellow_cone 等不同字符串。
     建图和规划只需要稳定的颜色桶，因此统一映射到：
-    `blue`、`yellow`、`red`、`unknown`。
+    blue、yellow、red、unknown。
     """
     value = (color or '').lower()
     if 'blue' in value:

@@ -10,24 +10,19 @@ from .utils import body_to_world, color_key, quaternion_to_yaw, set_marker_color
 
 """锥桶建图节点。
 
-这个节点负责把“车辆局部感知到的锥桶”累积成 `world` 坐标系下的全局地图。
+将感知到的锥桶数据转换到world坐标系下。
 
 输入：
 
-- `/localization/pose`：车辆当前在 world 中的位姿。
-- `/perception/cones`：局部锥桶地图，frame 通常是 `base_link`。
-- `/perception/cone_detections`：单帧局部锥桶列表。
+- /localization/pose：车辆当前在 world 中的位姿。
+- /perception/cones：局部锥桶地图。
+- /perception/cone_detections：单帧局部锥桶列表。
 
 输出：
 
 - `/estimation/slam/map`：全局锥桶地图，供规划使用。
 - `/visualization/cone_map`：RViz 可视化 marker。
 
-它不是严格意义上的 SLAM，而是一个针对赛道任务的轻量地标融合器：
-
-- 把局部观测转到 world；
-- 按颜色分桶；
-- 对近距离重复观测做简单融合。
 """
 
 
@@ -35,7 +30,7 @@ class ConeMapper(Node):
     def __init__(self):
         super().__init__('cone_mapper')
 
-        # 感知消息话题可配置，便于和内置感知或老师给的感知包对齐。
+        # 配置感知消息话题，sim_perception 实测，另一个调试验证。
         self.declare_parameter('perception_map_topic', '/perception/cones')
         self.declare_parameter('perception_detections_topic', '/perception/cone_detections')
 
@@ -121,9 +116,7 @@ class ConeMapper(Node):
         return body_to_world(cone.position.x, cone.position.y, x, y, yaw)
 
     def merge_landmark(self, color, x, y, pose_confidence, color_confidence):
-        """把新观测和已有地标做简单融合。
-
-        这里不是复杂滤波，只做最近邻匹配 + 加权平均，足够满足赛道任务。
+        """融合新观测信息和已有地标，采用最近邻匹配 + 加权平均。
         """
         bucket = self.landmarks[color]
         closest = None
@@ -153,7 +146,6 @@ class ConeMapper(Node):
         closest['color_confidence'] = max(closest['color_confidence'], color_confidence)
 
     def make_cone(self, color, landmark):
-        """把内部地标字典转换成对外发布的 Cone 消息。"""
         cone = Cone()
         cone.position.x = landmark['x']
         cone.position.y = landmark['y']
@@ -191,7 +183,6 @@ class ConeMapper(Node):
                 marker_id += 1
                 marker.type = Marker.CYLINDER
                 marker.action = Marker.ADD
-                # marker 的位置和大小只是可视化表达，不影响地图数据本身。
                 marker.pose.position.x = landmark['x']
                 marker.pose.position.y = landmark['y']
                 marker.pose.position.z = 0.28

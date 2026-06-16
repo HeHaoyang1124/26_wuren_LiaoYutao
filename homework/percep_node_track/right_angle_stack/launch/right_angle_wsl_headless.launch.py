@@ -11,14 +11,13 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 """WSL/headless 调试入口。
 
-该入口使用不含相机和 GPU 雷达的轻量车辆模型，适合在 WSL 图形栈不稳定时验证：
+该入口使用不含相机和 GPU 雷达的轻量车辆模型，适合在 WSL 验证：
 
 - Gazebo server 是否能启动；
 - 车辆是否能 spawn；
 - `/cmd_vel` bridge 是否生效；
 - 定位、感知、建图、规划、控制链路是否闭环。
-
-默认感知仍然使用老师给的 `sim_perception`。
+- RViz 可选，WSL 下不稳定。
 """
 
 
@@ -66,7 +65,6 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='false'),
-        # 默认感知使用老师给的 sim_perception；内置感知只作 fallback。
         DeclareLaunchArgument('use_builtin_perception', default_value='false'),
         DeclareLaunchArgument('use_sim_perception', default_value='true'),
         DeclareLaunchArgument('perception_map_topic', default_value='/perception/cones'),

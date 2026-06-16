@@ -11,26 +11,24 @@ from .utils import normalize_angle, yaw_to_quaternion
 
 """定位融合节点。
 
-该节点负责把 Gazebo 中的多个传感器数据组合成车辆在 `world` 坐标系下的位姿。
+把 Gazebo 中的传感器数据组合成车辆在 world 坐标系下的位姿。
 
 输入：
 
-- `/sensors/gps/fix`：GPS 经纬度。
-- `/sensors/imu/data_raw`：IMU 角速度，主要使用 z 轴 yaw rate。
-- `/sensors/wheel_odom`：轮速里程计，主要使用车体前向速度。
-- `/sensors/magnetic_field`：磁力计，保留航向修正能力，但默认关闭强融合。
+- /sensors/gps/fix：GPS 经纬度。
+- /sensors/imu/data_raw：IMU 角速度。
+- /sensors/wheel_odom：轮速里程计。
+- /sensors/magnetic_field：磁力计。
 
 输出：
 
-- `/localization/pose`：`geometry_msgs/msg/PoseStamped`，给感知和建图使用。
-- `/localization/odom`：`nav_msgs/msg/Odometry`，给 Pure Pursuit 控制器使用。
-- TF `world -> base_link`：给 RViz 和其他 ROS 工具使用。
+- /localization/pose：geometry_msgs/msg/PoseStamped，给感知和建图使用。
+- /localization/odom：nav_msgs/msg/Odometry，给 Pure Pursuit 控制器使用。
+- TF world -> base_link：给 RViz 和其他 ROS 工具使用。
 
-实现不是完整 EKF，而是一个针对本仿真任务的轻量互补融合：
-
-- GPS 提供慢速位置修正；
-- 轮速里程计和 IMU 在两帧之间做短时积分；
-- 磁力计接口保留，但默认 `mag_gain=0.0`，防止未标定时航向跳变影响闭环。
+GPS 提供慢速位置修正；
+轮速里程计和 IMU 在两帧之间做短时积分；
+磁力计接口保留，但默认 mag_gain=0.0，防止未标定时航向跳变影响闭环。
 """
 
 
@@ -47,13 +45,13 @@ class LocalizationFusion(Node):
         self.declare_parameter('origin_latitude', 23.043055)
         self.declare_parameter('origin_longitude', 113.397222)
 
-        # 车辆初始位姿。课程要求起点为 (0, -15)，朝北，因此 yaw = pi/2。
+        # 车辆初始位姿。
         self.declare_parameter('initial_x', 0.0)
         self.declare_parameter('initial_y', -15.0)
         self.declare_parameter('initial_yaw', math.pi / 2.0)
 
         # 互补融合增益。gps_gain 越大，GPS 对位置修正越强；
-        # mag_gain 越大，磁力计对航向修正越强。当前默认配置中 mag_gain=0。
+        # mag_gain 越大，磁力计对航向修正越强。
         self.declare_parameter('gps_gain', 0.45)
         self.declare_parameter('mag_gain', 0.30)
         self.declare_parameter('magnetic_declination', 0.0)
@@ -136,12 +134,7 @@ class LocalizationFusion(Node):
     def gps_to_local_xy(self, latitude_deg, longitude_deg):
         """把 GPS 经纬度转换成 world 平面米制坐标。
 
-        使用局部切平面近似：
-
-        - x = R * cos(lat0) * delta_lon
-        - y = R * delta_lat
-
-        这里再叠加 initial_x/initial_y，使第一帧 GPS 可以对应课程要求的起点。
+        使用局部切平面近似，再叠加 initial_x/initial_y，使第一帧 GPS 对应起点。
         """
         lat = math.radians(latitude_deg)
         lon = math.radians(longitude_deg)
@@ -253,7 +246,7 @@ class LocalizationFusion(Node):
     def publish_state(self, stamp):
         """发布 Pose、Odometry 和 TF。
 
-        三者表达的是同一个融合位姿，只是面向不同消费者：
+        针对不同订阅方需求发布不同消息：
 
         - PoseStamped：感知、建图等上层算法；
         - Odometry：控制器需要速度字段；

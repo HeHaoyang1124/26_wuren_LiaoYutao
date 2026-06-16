@@ -13,15 +13,15 @@ from .utils import yaw_to_quaternion
 
 输入：
 
-- `/estimation/slam/map`：全局锥桶地图。
-- `/localization/pose`：车辆当前位姿。
+- /estimation/slam/map：全局锥桶地图。
+- /localization/pose：车辆当前位姿。
 
 输出：
 
-- `/planning/centerline`：给 Pure Pursuit 使用的路径。
-- `/visualization/planning`：RViz 路径 marker。
+- /planning/centerline：给 Pure Pursuit 使用的路径。
+- /visualization/planning：RViz 路径 marker。
 
-规划器采用“两级策略”：
+给规划器设计了两套路径生成方案：
 
 1. 优先从蓝锥、黄锥配对求中点，得到锥桶中心线；
 2. 如果地图不足，则回退到解析路径，保证车辆仍能跑完整个直角弯。
@@ -71,10 +71,7 @@ class RightAnglePlanner(Node):
         self.current_pose = msg
 
     def track_progress(self, point):
-        """给路径点定义一个“沿赛道前进顺序”的标量。
-
-        这样可以把散乱的中点按赛道推进方向排序，而不是只按 x/y 排序。
-        """
+        """给路径点沿赛道前进顺序做标记。"""
         x, y = point
         if y <= 0.2 and x < 3.0:
             return y + 15.0
@@ -86,8 +83,6 @@ class RightAnglePlanner(Node):
 
     def analytic_path(self):
         """生成直角弯的解析 fallback 路径。
-
-        路径分三段：
 
         - 直道：x=0，y 从 -15 到 0；
         - 弯道：以 (turn_center_x, turn_center_y) 为圆心的四分之一圆；
@@ -115,14 +110,13 @@ class RightAnglePlanner(Node):
         return points
 
     def cone_centerline(self):
-        """从蓝锥和黄锥配对得到中心线。
-
-        规则很简单：
+        """根据蓝锥、黄锥配对得到中心线。
+        思路：
 
         - 一个蓝锥只配一个最近的黄锥；
         - 配对距离太大就跳过；
         - 取中点作为中心线点；
-        - 中点数量足够时再生成路径。
+        - 中点数量足够后生成路径。
         """
         if self.latest_map is None:
             return []
@@ -172,10 +166,8 @@ class RightAnglePlanner(Node):
     def choose_path(self):
         """选择本周期最终输出路径。
 
-        优先级：
-
         1. 锥桶地图中心线；
-        2. 解析 fallback；
+        2. 备用的解析路径；
         3. 没有路径则不发布。
         """
         cone_path = self.cone_centerline() if self.prefer_cone_map else []
@@ -213,7 +205,7 @@ class RightAnglePlanner(Node):
         self.publish_markers(path.header, points, source)
 
     def publish_markers(self, header, points, source):
-        """把中心线画成 RViz 可见的线条。"""
+        """中心线路径在 RViz 中可视化。"""
         markers = MarkerArray()
         clear = Marker()
         clear.header = header

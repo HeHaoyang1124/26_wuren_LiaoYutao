@@ -41,7 +41,7 @@ class SimSensorBridge(Node):
         self.declare_parameter('origin_latitude', 23.043055)
         self.declare_parameter('origin_longitude', 113.397222)
 
-        # 给合成传感器加入少量噪声，让下游融合逻辑更接近真实传感器。
+        # 给合成传感器加入少量噪声。
         self.declare_parameter('gps_noise_std', 0.25)
         self.declare_parameter('imu_gyro_noise_std', 0.002)
         self.declare_parameter('mag_noise_std', 1e-6)

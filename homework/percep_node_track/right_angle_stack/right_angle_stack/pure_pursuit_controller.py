@@ -11,14 +11,13 @@ from .utils import normalize_angle, quaternion_to_yaw, world_to_body
 
 输入：
 
-- `/planning/centerline`：规划器输出路径。
-- `/localization/odom`：车辆当前位姿和速度。
+- /planning/centerline：规划器输出路径。
+- /localization/odom：车辆当前位姿和速度。
 
 输出：
 
-- `/cmd_vel`：Gazebo DiffDrive 接收的速度控制指令。
+- /cmd_vel：Gazebo DiffDrive 接收的速度控制指令。
 
-该实现只做二维平面控制，不涉及侧滑建模。
 """
 
 
@@ -30,7 +29,6 @@ class PurePursuitController(Node):
         self.declare_parameter('target_speed', 3.0)
         self.declare_parameter('min_speed', 1.2)
 
-        # lookahead_distance 是 Pure Pursuit 的核心参数：
         # 目标点必须在车前方且距离当前车体有一定前瞻距离。
         self.declare_parameter('lookahead_distance', 4.0)
         self.declare_parameter('max_yaw_rate', 1.4)
@@ -115,14 +113,14 @@ class PurePursuitController(Node):
         # Pure Pursuit 核心公式：根据局部目标点求曲率。
         curvature = 2.0 * local_y / (lookahead * lookahead)
 
-        # yaw_error 作为一个小的辅助修正项，帮助中等曲率下更快对齐。
+        # yaw_error 作为辅助修正项，帮助在中等曲率下更快对齐。
         yaw_error = math.atan2(local_y, max(local_x, 1e-3))
 
         yaw_rate = self.target_speed * curvature
         yaw_rate += 0.20 * normalize_angle(yaw_error)
         yaw_rate = max(-self.max_yaw_rate, min(self.max_yaw_rate, yaw_rate))
 
-        # 弯道时自动降速，避免直接按恒定速度硬拐。
+        # 弯道时自动降速。
         turn_slowdown = min(1.0, abs(curvature) / 0.28)
         speed = self.target_speed * (1.0 - 0.45 * turn_slowdown)
         speed = max(self.min_speed, speed)
