@@ -3,13 +3,7 @@ import xml.etree.ElementTree as ET
 """读取赛道 SDF 中的锥桶布置。
 
 赛道模型 tracks/models/shixi/model.sdf 通过多个 <include> 引用蓝锥和黄锥模型。
-内置 fallback 感知节点需要知道这些锥桶在 world 坐标系下的位置，因此这里直接解析 SDF。
-
-注意：
-
-- 这里不解析 Gazebo 运行时状态，只解析静态赛道文件。
-- 返回坐标保持 SDF 中的 world 坐标。
-- 颜色根据 include 的 uri 和 name 推断。
+内置感知节点需要知道这些锥桶在 world 坐标系下的位置，因此这里直接解析 SDF。
 """
 
 

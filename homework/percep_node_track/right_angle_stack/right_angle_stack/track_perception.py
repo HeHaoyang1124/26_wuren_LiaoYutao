@@ -8,10 +8,9 @@ from rclpy.node import Node
 from .track_model import load_cones_from_sdf
 from .utils import quaternion_to_yaw, world_to_body
 
-"""内置 fallback 感知节点。
+"""内置感知节点。
 
-本节点保留为 fallback：当加密运行时、依赖或 ABI 出问题时，可以临时启用以验证
-建图-规划-控制闭环。
+当加密运行时、依赖或 ABI 出问题时，可以临时启用以验证建图-规划-控制闭环。
 
 功能：
 
@@ -19,7 +18,7 @@ from .utils import quaternion_to_yaw, world_to_body
 - 根据 /localization/pose 得到车辆位置；
 - 把 world 下锥桶转换到 base_link；
 - 只发布车辆前方一定范围内的锥桶；
-- 给位置加入高斯噪声，模拟感知误差；
+- 加入高斯噪声模拟测量误差；
 """
 
 
@@ -54,11 +53,10 @@ class TrackPerception(Node):
         self.declare_parameter('lateral_range', 9.0)
         self.declare_parameter('rear_margin', 1.0)
 
-        # 位置噪声，用来模拟感知子系统的测量误差。
+        # 模拟感知子系统的噪声，尽量模仿sim_perception。
         self.declare_parameter('position_noise_std', 0.05)
         self.declare_parameter('publish_rate', 10.0)
 
-        # 输出话题做成参数，便于和老师给的 sim_perception 或其他感知包对齐。
         self.declare_parameter('map_topic', '/perception/cones')
         self.declare_parameter('detections_topic', '/perception/cone_detections')
 
@@ -94,11 +92,7 @@ class TrackPerception(Node):
         self.yaw = quaternion_to_yaw(msg.pose.orientation)
 
     def make_local_cone(self, color, local_x, local_y, z):
-        """构造一个 base_link 下的锥桶观测。
-
-        local_x/local_y 已经是车辆坐标系下的位置。
-        加入高斯噪声，并设置置信度字段。
-        """
+        """构造一个 base_link 下的锥桶观测。"""
         cone = Cone()
         cone.position.x = local_x + random.gauss(0.0, self.noise_std)
         cone.position.y = local_y + random.gauss(0.0, self.noise_std)

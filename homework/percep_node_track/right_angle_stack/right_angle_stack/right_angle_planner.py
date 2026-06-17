@@ -82,7 +82,7 @@ class RightAnglePlanner(Node):
         return 15.0 + 0.5 * math.pi * self.radius + max(0.0, x - self.center_x)
 
     def analytic_path(self):
-        """生成直角弯的解析 fallback 路径。
+        """生成直角弯的解析路径。
 
         - 直道：x=0，y 从 -15 到 0；
         - 弯道：以 (turn_center_x, turn_center_y) 为圆心的四分之一圆；

@@ -29,7 +29,7 @@ class PurePursuitController(Node):
         self.declare_parameter('target_speed', 3.0)
         self.declare_parameter('min_speed', 1.2)
 
-        # 目标点必须在车前方且距离当前车体有一定前瞻距离。
+        # 目标点必须在车前方且距离当前车体有一定距离。
         self.declare_parameter('lookahead_distance', 4.0)
         self.declare_parameter('max_yaw_rate', 1.4)
         self.declare_parameter('stop_distance', 1.2)

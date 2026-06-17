@@ -20,8 +20,8 @@ from .utils import body_to_world, color_key, quaternion_to_yaw, set_marker_color
 
 输出：
 
-- `/estimation/slam/map`：全局锥桶地图，供规划使用。
-- `/visualization/cone_map`：RViz 可视化 marker。
+- /estimation/slam/map：全局锥桶地图，供规划使用。
+- /visualization/cone_map：RViz 可视化 marker。
 
 """
 
@@ -116,8 +116,7 @@ class ConeMapper(Node):
         return body_to_world(cone.position.x, cone.position.y, x, y, yaw)
 
     def merge_landmark(self, color, x, y, pose_confidence, color_confidence):
-        """融合新观测信息和已有地标，采用最近邻匹配 + 加权平均。
-        """
+        """融合新观测信息和已有地标，采用最近邻匹配 + 加权平均。"""
         bucket = self.landmarks[color]
         closest = None
         best_distance = float('inf')
