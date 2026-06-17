@@ -1,0 +1,39 @@
+localization_fusion:
+  ros__parameters:
+    origin_latitude: 23.043055
+    origin_longitude: 113.397222
+    initial_x: 0.0
+    initial_y: -15.0
+    initial_yaw: 1.57079632679
+    gps_gain: 0.12
+    mag_gain: 0.0
+    use_first_gps_as_origin: true
+    gps_reject_distance: 8.0
+    mag_reject_angle: 1.2
+
+cone_mapper:
+  ros__parameters:
+    perception_map_topic: /perception/cones
+    perception_detections_topic: /perception/cone_detections
+    merge_distance: 0.75
+
+right_angle_planner:
+  ros__parameters:
+    prefer_cone_map: true
+    fallback_path: true
+    turn_center_x: 12.0
+    turn_center_y: 0.0
+    turn_radius: 12.0
+
+pure_pursuit_controller:
+  ros__parameters:
+    target_speed: 3.0
+    min_speed: 1.2
+    lookahead_distance: 4.0
+    max_yaw_rate: 1.4
+
+track_perception:
+  ros__parameters:
+    max_range: 18.0
+    lateral_range: 9.0
+    position_noise_std: 0.05
